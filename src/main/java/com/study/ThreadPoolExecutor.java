@@ -21,7 +21,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     private final ArrayBlockingQueue<Runnable> taskQueue;
     private final List<Worker> workers;
     private final Condition termination = mainThreadLock.newCondition();
-    private volatile boolean isTerminated = false;
+    private volatile boolean isTerminated;
+    private boolean isAllowed = true;
 
     public ThreadPoolExecutor() {
         this(DEFAULT_THREAD_POOL_SIZE, DEFAULT_QUEUE_SIZE);
@@ -77,7 +78,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     public boolean awaitTermination(long timeout, TimeUnit unit) {
         long nanos = unit.toNanos(timeout);
         mainThreadLock.lock();
-
+        isAllowed = false;
         int stateSum = workers.stream().mapToInt(worker -> worker.state.getValue()).sum();
         try {
             while (stateSum > 0) {
@@ -98,7 +99,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         if (command == null) {
             throw new NullPointerException("Command cannot be null");
         }
+        if (isAllowed) {
             taskQueue.put(command);
+        }
     }
 
     private void interruptWorkers() {
